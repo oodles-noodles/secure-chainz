@@ -1,0 +1,6 @@
+apiVersion: v2
+name: secure-chainz
+description: A Helm chart for deploying the secure-chainz application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

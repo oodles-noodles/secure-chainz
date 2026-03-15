@@ -8,87 +8,23 @@ on:
     branches:
       - main
 
-permissions:
-  contents: read
-  id-token: write
-  deployments: write
-  artifact-metadata: write
-
-env:
-  REGISTRY: ${{ vars.ACR_REGISTRY }}
-  IMAGE_NAME: secure-chainz
-
 jobs:
   deploy:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Set image reference
-        id: image
-        run: |
-          SHORT_SHA="${{ github.event.workflow_run.head_sha }}"
-          SHORT_SHA="${SHORT_SHA:0:7}"
-          IMAGE_REF="${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}:main-${SHORT_SHA}"
-          echo "ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
-          echo "tag=main-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Log in to Azure Container Registry
-        run: az acr login --name ${{ vars.ACR_REGISTRY }}
-
-      - name: Verify image attestation
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh attestation verify "oci://${{ steps.image.outputs.ref }}" \
-            --repo "${{ github.repository }}"
-
-      - name: Set up Helm
-        uses: azure/setup-helm@v4
-
-      - uses: azure/setup-kubectl@v4
-
-      - name: Install kubelogin
-        uses: azure/use-kubelogin@v1
-        with:
-          kubelogin-version: 'v0.0.24'
-
-      - name: Set AKS context
-        uses: azure/aks-set-context@v4
-        with:
-          resource-group: ${{ vars.AKS_RESOURCE_GROUP }}
-          cluster-name: ${{ vars.AKS_CLUSTER_NAME }}
-     
-      - name: Deploy with Helm
-        run: |
-          kubelogin convert-kubeconfig -l azurecli
-          helm upgrade --install secure-chainz ./helm/secure-chainz \
-            --set image.repository="${{ vars.ACR_REGISTRY }}/${{ env.IMAGE_NAME }}" \
-            --set image.tag="${{ steps.image.outputs.tag }}" \
-            --wait
-
-      - name: Create artifact deployment record
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          DIGEST=$(az acr repository show \
-            --name "${{ vars.ACR_REGISTRY }}" \
-            --image "${{ env.IMAGE_NAME }}:${{ steps.image.outputs.tag }}" \
-            --query digest -o tsv)
-          curl -L \
-            -X POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/orgs/${{ github.repository_owner }}/artifacts/metadata/deployment-record" \
-            -d "{\"name\":\"${{ env.IMAGE_NAME }}\",\"digest\":\"${DIGEST}\",\"status\":\"deployed\",\"logical_environment\":\"prod\",\"cluster\":\"${{ vars.AKS_CLUSTER_NAME }}\",\"deployment_name\":\"${{ env.IMAGE_NAME }}\"}"
+    uses: oodles-noodles/reusable-workflows/.github/workflows/deploy.yml@main
+    with:
+      registry: ${{ vars.ACR_REGISTRY }}
+      image_name: ${{ github.event.repository.name }}
+      azure_client_id: ${{ vars.AZURE_CLIENT_ID }}
+      azure_tenant_id: ${{ vars.AZURE_TENANT_ID }}
+      azure_subscription_id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      aks_resource_group: ${{ vars.AKS_RESOURCE_GROUP }}
+      aks_cluster_name: ${{ vars.AKS_CLUSTER_NAME }}
+      helm_chart_path: "./helm/secure-chainz"
+      helm_release_name: "secure-chainz"
+      head_sha: ${{ github.event.workflow_run.head_sha }}
+    permissions:
+      contents: read
+      id-token: write
+      deployments: write
+      artifact-metadata: write

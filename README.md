@@ -1,3 +1,3 @@
-# mdc-ghas playbook
+# no weak links
 
-Customer ready playbook to test MDC and GHAS integration. 
+Zelda would be proud

@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  ci:
     uses: oodles-noodles/reusable-workflows/.github/workflows/build-and-push.yml@main
     with:
       registry: ${{ vars.ACR_REGISTRY }}
